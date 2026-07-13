@@ -54,11 +54,18 @@ def on_message(client, userdata, msg):
 
 @st.cache_resource
 def start_mqtt():
-    client = mqtt.Client()
+    # Using explicit callback API version to suppress your line 57 deprecation warning
+    client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION1)
     client.on_connect = on_connect
     client.on_message = on_message
     client.connect(MQTT_BROKER, MQTT_PORT, 60)
     client.loop_start()
+    
+    # --- Inject Streamlit Context into the background thread loop ---
+    for thread in threading.enumerate():
+        if "paho-mqtt-client" in thread.name:
+            add_script_run_context(thread)
+            
     return client
 
 mqtt_client = start_mqtt()

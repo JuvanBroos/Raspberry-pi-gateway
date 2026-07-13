@@ -3,18 +3,18 @@ import paho.mqtt.client as mqtt
 import json
 import pandas as pd
 from datetime import datetime
+import threading
 
 MQTT_BROKER = "localhost"
 MQTT_PORT = 1883
 
 st.set_page_config(layout="wide", page_title="Sensor Coordinator UI")
 
-# --- Global Thread-Safe In-Memory Stores ---
-# These sit completely outside Streamlit's session state to avoid cross-thread crashes
-if "GLOBAL_NODES" not in st.annotations:
-    st.annotations["GLOBAL_NODES"] = {}
-if "GLOBAL_LOGS" not in st.annotations:
-    st.annotations["GLOBAL_LOGS"] = []
+# --- Global Thread-Safe In-Memory Storage ---
+class NetworkStorage:
+    lock = threading.Lock()
+    nodes = {}
+    logs = []
 
 def on_connect(client, userdata, flags, rc):
     client.subscribe("gateway/node/+/data")
@@ -26,33 +26,34 @@ def on_message(client, userdata, msg):
     parts = msg.topic.split('/')
     timestamp = datetime.now().strftime("%H:%M:%S")
     
-    if "raw_logs" in msg.topic:
-        proto_id = parts[2]
-        proto_name = {"0": "WiFi", "1": "Zigbee", "2": "LoRa"}.get(proto_id, "UNK")
-        st.annotations["GLOBAL_LOGS"].append(f"[{timestamp}] [{proto_name} Raw] {msg.payload.decode()}")
-    else:
-        node_id = parts[2]
-        sub_type = parts[3]
-        
-        if sub_type == "data":
-            try:
-                data = json.loads(msg.payload.decode())
-                data["Last Seen"] = timestamp
-                st.annotations["GLOBAL_NODES"][node_id] = data
-            except Exception as e:
-                pass
-        elif sub_type == "status":
-            st.annotations["GLOBAL_LOGS"].append(f"[{timestamp}] [{node_id}] Node Status Frame Received")
-        elif sub_type == "logs":
-            st.annotations["GLOBAL_LOGS"].append(f"[{timestamp}] [{node_id}] {msg.payload.decode()}")
+    with NetworkStorage.lock:
+        if "raw_logs" in msg.topic:
+            proto_id = parts[2]
+            proto_name = {"0": "WiFi", "1": "Zigbee", "2": "LoRa"}.get(proto_id, "UNK")
+            NetworkStorage.logs.append(f"[{timestamp}] [{proto_name} Raw] {msg.payload.decode()}")
+        else:
+            node_id = parts[2]
+            sub_type = parts[3]
+            
+            if sub_type == "data":
+                try:
+                    data = json.loads(msg.payload.decode())
+                    data["Last Seen"] = timestamp
+                    NetworkStorage.nodes[node_id] = data
+                except Exception:
+                    pass
+            elif sub_type == "status":
+                NetworkStorage.logs.append(f"[{timestamp}] [{node_id}] Node Status Frame Received")
+            elif sub_type == "logs":
+                NetworkStorage.logs.append(f"[{timestamp}] [{node_id}] {msg.payload.decode()}")
 
-    # Cap log size
-    if len(st.annotations["GLOBAL_LOGS"]) > 100:
-        st.annotations["GLOBAL_LOGS"].pop(0)
+        # Cap log size to prevent layout bloom
+        if len(NetworkStorage.logs) > 100:
+            NetworkStorage.logs.pop(0)
 
 @st.cache_resource
 def start_mqtt():
-    # Use explicit modern API flag to prevent deprecation prints
+    # Explicitly using modern configuration to stop deprecation log noise
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION1)
     client.on_connect = on_connect
     client.on_message = on_message
@@ -60,7 +61,7 @@ def start_mqtt():
     client.loop_start()
     return client
 
-# Start the background listener loop safely
+# Spin up the listener 
 mqtt_client = start_mqtt()
 
 # --- UI Render Section ---
@@ -71,12 +72,15 @@ col_left, col_right = st.columns([3, 1])
 with col_left:
     st.subheader("Discovered Node Telemetry")
     
-    # Read directly from the thread-safe global memory store
-    active_nodes = st.annotations["GLOBAL_NODES"]
+    # Read cleanly from memory with thread locking
+    with NetworkStorage.lock:
+        active_nodes = dict(NetworkStorage.nodes)
+        active_logs = list(NetworkStorage.logs)
     
     if active_nodes:
         raw_df = pd.DataFrame.from_dict(active_nodes, orient='index')
         
+        # Check if accelerometer details are grouped or independent
         if 'Accel_X' in raw_df.columns:
             raw_df['Accel X/Y/Z'] = raw_df.apply(lambda r: f"{r.get('Accel_X',0)}/{r.get('Accel_Y',0)}/{r.get('Accel_Z',0)}", axis=1)
             display_df = raw_df.reindex(columns=["Proto", "RSSI", "Batt", "Temp", "GNSS", "Lat", "Lon", "Accel X/Y/Z", "Last Seen"])
@@ -88,7 +92,6 @@ with col_left:
         st.info("Scanning for incoming network telemetry matrices... Click Refresh to pull new frames.")
 
     st.subheader("Network Event Log Stream")
-    active_logs = st.annotations["GLOBAL_LOGS"]
     if active_logs:
         log_block = "\n".join(reversed(active_logs))
         st.text_area("Logs Container", value=log_block, height=250, disabled=True, label_visibility="collapsed")
@@ -121,5 +124,5 @@ with col_right:
                 mqtt_client.publish("gateway/commands", json.dumps(payload))
                 st.success(f"Downlink instruction published.")
 
-# Simple refresh trigger to redraw the UI state from global storage
+# Explicit trigger to force a script rerun and paint new background updates
 st.button("🔄 Refresh Matrices")

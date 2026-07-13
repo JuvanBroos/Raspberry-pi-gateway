@@ -22,6 +22,12 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe("gateway/raw_logs/+")
 
 def on_message(client, userdata, msg):
+    # --- Thread-Safe Safety Initialization Guards ---
+    if "logs" not in st.session_state:
+        st.session_state.logs = []
+    if "nodes" not in st.session_state:
+        st.session_state.nodes = {}
+
     parts = msg.topic.split('/')
     timestamp = datetime.now().strftime("%H:%M:%S")
     

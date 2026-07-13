@@ -23,31 +23,43 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe("gateway/raw_logs/+")
 
 def on_message(client, userdata, msg):
+    # --- TEMPORARY RAW DEBUG PRINT ---
+    # This will dump everything hitting the broker directly into your terminal console
+    print(\n"=== New MQTT Message Received ===")
+    print(f"Topic: {msg.topic}")
+    try:
+        print(f"Payload: {msg.payload.decode()}")
+    except Exception as e:
+        print(f"Payload (Raw Bytes): {msg.payload}")
+    # ---------------------------------
+
     parts = msg.topic.split('/')
     timestamp = datetime.now().strftime("%H:%M:%S")
     
     with NetworkStorage.lock:
+        NetworkStorage.last_packet_time = timestamp
+        
+        # Capture raw logs cleanly
         if "raw_logs" in msg.topic:
-            proto_id = parts[2]
-            proto_name = {"0": "WiFi", "1": "Zigbee", "2": "LoRa"}.get(proto_id, "UNK")
-            NetworkStorage.logs.append(f"[{timestamp}] [{proto_name} Raw] {msg.payload.decode()}")
-        else:
-            node_id = parts[2]
-            sub_type = parts[3]
-            
-            if sub_type == "data":
-                try:
-                    data = json.loads(msg.payload.decode())
-                    data["Last Seen"] = timestamp
-                    NetworkStorage.nodes[node_id] = data
-                except Exception:
-                    pass
-            elif sub_type == "status":
-                NetworkStorage.logs.append(f"[{timestamp}] [{node_id}] Node Status Frame Received")
-            elif sub_type == "logs":
-                NetworkStorage.logs.append(f"[{timestamp}] [{node_id}] {msg.payload.decode()}")
+            try:
+                proto_id = parts[-1]
+                proto_name = {"0": "WiFi", "1": "Zigbee", "2": "LoRa"}.get(proto_id, "UNK")
+                NetworkStorage.logs.append(f"[{timestamp}] [{proto_name} Raw] {msg.payload.decode()}")
+            except Exception:
+                pass
+        
+        # Fallback greedy match: if any topic ends in 'data', try to capture it
+        elif msg.topic.endswith("/data"):
+            try:
+                # Dynamically extract the node ID assuming it's the second-to-last or third element
+                node_id = parts[-2] 
+                data = json.loads(msg.payload.decode())
+                data["Last Seen"] = timestamp
+                NetworkStorage.nodes[node_id] = data
+            except Exception as e:
+                print(f"DEBUG: Failed to parse data packet: {e}")
 
-        # Cap log size to prevent layout bloom
+        # Keep logs from spilling over
         if len(NetworkStorage.logs) > 100:
             NetworkStorage.logs.pop(0)
 

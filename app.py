@@ -9,11 +9,12 @@ MQTT_PORT = 1883
 
 st.set_page_config(layout="wide", page_title="Sensor Coordinator UI")
 
-# --- Initialize Global Session States ---
-if "nodes" not in st.session_state:
-    st.session_state.nodes = {}
-if "logs" not in st.session_state:
-    st.session_state.logs = []
+# --- Global Thread-Safe In-Memory Stores ---
+# These sit completely outside Streamlit's session state to avoid cross-thread crashes
+if "GLOBAL_NODES" not in st.annotations:
+    st.annotations["GLOBAL_NODES"] = {}
+if "GLOBAL_LOGS" not in st.annotations:
+    st.annotations["GLOBAL_LOGS"] = []
 
 def on_connect(client, userdata, flags, rc):
     client.subscribe("gateway/node/+/data")
@@ -22,77 +23,74 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe("gateway/raw_logs/+")
 
 def on_message(client, userdata, msg):
-    # --- Thread-Safe Safety Initialization Guards ---
-    if "logs" not in st.session_state:
-        st.session_state.logs = []
-    if "nodes" not in st.session_state:
-        st.session_state.nodes = {}
-
     parts = msg.topic.split('/')
     timestamp = datetime.now().strftime("%H:%M:%S")
     
     if "raw_logs" in msg.topic:
         proto_id = parts[2]
         proto_name = {"0": "WiFi", "1": "Zigbee", "2": "LoRa"}.get(proto_id, "UNK")
-        st.session_state.logs.append(f"[{timestamp}] [{proto_name} Raw] {msg.payload.decode()}")
+        st.annotations["GLOBAL_LOGS"].append(f"[{timestamp}] [{proto_name} Raw] {msg.payload.decode()}")
     else:
         node_id = parts[2]
         sub_type = parts[3]
         
         if sub_type == "data":
-            data = json.loads(msg.payload.decode())
-            data["Last Seen"] = timestamp
-            st.session_state.nodes[node_id] = data
+            try:
+                data = json.loads(msg.payload.decode())
+                data["Last Seen"] = timestamp
+                st.annotations["GLOBAL_NODES"][node_id] = data
+            except Exception as e:
+                pass
         elif sub_type == "status":
-            st.session_state.logs.append(f"[{timestamp}] [{node_id}] Node Status Frame Received")
+            st.annotations["GLOBAL_LOGS"].append(f"[{timestamp}] [{node_id}] Node Status Frame Received")
         elif sub_type == "logs":
-            st.session_state.logs.append(f"[{timestamp}] [{node_id}] {msg.payload.decode()}")
+            st.annotations["GLOBAL_LOGS"].append(f"[{timestamp}] [{node_id}] {msg.payload.decode()}")
 
-    # Keep log collection size capped
-    if len(st.session_state.logs) > 60:
-        st.session_state.logs.pop(0)
+    # Cap log size
+    if len(st.annotations["GLOBAL_LOGS"]) > 100:
+        st.annotations["GLOBAL_LOGS"].pop(0)
 
 @st.cache_resource
 def start_mqtt():
-    # Using explicit callback API version to suppress your line 57 deprecation warning
+    # Use explicit modern API flag to prevent deprecation prints
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION1)
     client.on_connect = on_connect
     client.on_message = on_message
     client.connect(MQTT_BROKER, MQTT_PORT, 60)
     client.loop_start()
-    
-    # --- Inject Streamlit Context into the background thread loop ---
-    for thread in threading.enumerate():
-        if "paho-mqtt-client" in thread.name:
-            add_script_run_context(thread)
-            
     return client
 
+# Start the background listener loop safely
 mqtt_client = start_mqtt()
 
+# --- UI Render Section ---
 st.title("📡 Multi-Protocol Coordinator Cockpit")
 
 col_left, col_right = st.columns([3, 1])
 
 with col_left:
     st.subheader("Discovered Node Telemetry")
-    if st.session_state.nodes:
-        raw_df = pd.DataFrame.from_dict(st.session_state.nodes, orient='index')
+    
+    # Read directly from the thread-safe global memory store
+    active_nodes = st.annotations["GLOBAL_NODES"]
+    
+    if active_nodes:
+        raw_df = pd.DataFrame.from_dict(active_nodes, orient='index')
         
-        # Combine Accel fields for UI uniformity matching your list columns
         if 'Accel_X' in raw_df.columns:
-            raw_df['Accel X/Y/Z'] = raw_df.apply(lambda r: f"{r['Accel_X']}/{r['Accel_Y']}/{r['Accel_Z']}", axis=1)
+            raw_df['Accel X/Y/Z'] = raw_df.apply(lambda r: f"{r.get('Accel_X',0)}/{r.get('Accel_Y',0)}/{r.get('Accel_Z',0)}", axis=1)
             display_df = raw_df.reindex(columns=["Proto", "RSSI", "Batt", "Temp", "GNSS", "Lat", "Lon", "Accel X/Y/Z", "Last Seen"])
         else:
             display_df = raw_df
             
         st.dataframe(display_df, use_container_width=True)
     else:
-        st.info("Scanning for incoming network telemetry matrices...")
+        st.info("Scanning for incoming network telemetry matrices... Click Refresh to pull new frames.")
 
     st.subheader("Network Event Log Stream")
-    if st.session_state.logs:
-        log_block = "\n".join(reversed(st.session_state.logs))
+    active_logs = st.annotations["GLOBAL_LOGS"]
+    if active_logs:
+        log_block = "\n".join(reversed(active_logs))
         st.text_area("Logs Container", value=log_block, height=250, disabled=True, label_visibility="collapsed")
 
 with col_right:
@@ -121,7 +119,7 @@ with col_right:
                 }
                 
                 mqtt_client.publish("gateway/commands", json.dumps(payload))
-                st.success(f"Downlink instruction published for core processing loop.")
+                st.success(f"Downlink instruction published.")
 
-if st.button("🔄 Refresh Matrices"):
-    st.rerun()
+# Simple refresh trigger to redraw the UI state from global storage
+st.button("🔄 Refresh Matrices")

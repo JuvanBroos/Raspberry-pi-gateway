@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gateway Coordinator</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <!-- We append a cache-busting string so the browser is forced to download the new files -->
+    <link rel="stylesheet" href="/static/style.css?v=2">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -42,15 +43,20 @@
 
             <section class="charts-container" id="node-details" style="display: none;">
                 <div class="charts-header">
-                    <h2 id="chart-title">Node Details</h2>
+                    <div>
+                        <h2 id="chart-title" style="display: inline-block; margin-right: 15px;">Node Details</h2>
+                        <select id="chart-metric-select" class="btn-secondary" style="background: rgba(0,0,0,0.3); color: white; padding: 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2);">
+                            <option value="temp_c">Temperature (°C)</option>
+                            <option value="batt_mv">Battery (mV)</option>
+                            <option value="rssi">RSSI (dBm)</option>
+                            <option value="gnss_sats">GNSS Sats</option>
+                        </select>
+                    </div>
                     <button id="close-charts" class="btn-secondary">Close</button>
                 </div>
-                <div class="charts-grid">
+                <div class="charts-grid" style="grid-template-columns: 1fr; height: 250px;">
                     <div class="chart-wrapper">
-                        <canvas id="tempChart"></canvas>
-                    </div>
-                    <div class="chart-wrapper">
-                        <canvas id="battChart"></canvas>
+                        <canvas id="mainChart"></canvas>
                     </div>
                 </div>
             </section>
@@ -108,6 +114,6 @@
             </form>
         </aside>
     </div>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=3"></script>
 </body>
 </html>

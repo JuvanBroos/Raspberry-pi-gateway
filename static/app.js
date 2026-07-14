@@ -6,29 +6,41 @@ const logBox = document.getElementById('log-box');
 // Node State
 const nodes = {};
 let activeChartNodeId = null;
+let currentChartData = [];
 
 // Charts
-let tempChart, battChart;
+let mainChart;
 
 function initCharts() {
-    const ctxTemp = document.getElementById('tempChart').getContext('2d');
-    const ctxBatt = document.getElementById('battChart').getContext('2d');
-
+    const ctx = document.getElementById('mainChart').getContext('2d');
     Chart.defaults.color = '#94a3b8';
     Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
 
-    tempChart = new Chart(ctxTemp, {
+    mainChart = new Chart(ctx, {
         type: 'line',
-        data: { labels: [], datasets: [{ label: 'Temperature (°C)', data: [], borderColor: '#f87171', tension: 0.3 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-    });
-
-    battChart = new Chart(ctxBatt, {
-        type: 'line',
-        data: { labels: [], datasets: [{ label: 'Battery (mV)', data: [], borderColor: '#38bdf8', tension: 0.3 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        data: { labels: [], datasets: [{ label: 'Metric', data: [], borderColor: '#38bdf8', tension: 0.3, backgroundColor: 'rgba(56, 189, 248, 0.1)', fill: true }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } } }
     });
 }
+
+function updateChartDisplay() {
+    if (!mainChart) return;
+    
+    const metric = document.getElementById('chart-metric-select').value;
+    const metricLabels = {
+        'temp_c': 'Temperature (°C)',
+        'batt_mv': 'Battery (mV)',
+        'rssi': 'RSSI (dBm)',
+        'gnss_sats': 'GNSS Sats'
+    };
+    
+    mainChart.data.datasets[0].label = metricLabels[metric];
+    mainChart.data.labels = currentChartData.map(row => new Date(row.timestamp_ms).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+    mainChart.data.datasets[0].data = currentChartData.map(row => row[metric]);
+    mainChart.update();
+}
+
+document.getElementById('chart-metric-select').onchange = updateChartDisplay;
 
 function updateTable(nodeId, data) {
     nodes[nodeId] = data;
@@ -93,24 +105,11 @@ function connectWS() {
             
             // Live update the chart if it's currently open
             if (activeChartNodeId === payload.node_id && document.getElementById('node-details').style.display === 'block') {
-                const d = new Date(payload.timestamp_ms);
-                const timeStr = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                
-                tempChart.data.labels.push(timeStr);
-                tempChart.data.datasets[0].data.push(payload.temp_c);
-                if (tempChart.data.labels.length > 30) {
-                    tempChart.data.labels.shift();
-                    tempChart.data.datasets[0].data.shift();
+                currentChartData.push(payload);
+                if (currentChartData.length > 30) {
+                    currentChartData.shift(); // keep max 30 points on chart
                 }
-                tempChart.update();
-
-                battChart.data.labels.push(timeStr);
-                battChart.data.datasets[0].data.push(payload.batt_mv);
-                if (battChart.data.labels.length > 30) {
-                    battChart.data.labels.shift();
-                    battChart.data.datasets[0].data.shift();
-                }
-                battChart.update();
+                updateChartDisplay(); // Re-render the selected metric
             }
         } else if (topic === "wsn/uplink/status") {
             appendLog(`Status update from ${payload.node_id}: ${payload.status}`);
@@ -134,18 +133,8 @@ async function showNodeDetails(nodeId) {
         const history = await res.json();
         
         history.reverse(); // oldest first for chart
-
-        const labels = history.map(row => new Date(row.timestamp_ms).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-        const temps = history.map(row => row.temp_c);
-        const batts = history.map(row => row.batt_mv);
-
-        tempChart.data.labels = labels;
-        tempChart.data.datasets[0].data = temps;
-        tempChart.update();
-
-        battChart.data.labels = labels;
-        battChart.data.datasets[0].data = batts;
-        battChart.update();
+        currentChartData = history;
+        updateChartDisplay();
 
     } catch (e) {
         console.error("Failed to fetch history", e);
@@ -209,7 +198,6 @@ connectWS();
 fetch('/api/history?limit=100')
     .then(res => res.json())
     .then(history => {
-        // We only want the latest reading per node
         const seen = new Set();
         for (const row of history) {
             if (!seen.has(row.node_id)) {

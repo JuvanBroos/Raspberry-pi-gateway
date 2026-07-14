@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gateway Coordinator</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="glass-container main-layout">
+        <div class="content-panel">
+            <header>
+                <h1>Sensor Coordinator</h1>
+                <div class="status-indicator">
+                    <span id="ws-status" class="dot disconnected"></span>
+                    <span id="ws-text">Connecting...</span>
+                </div>
+            </header>
+            
+            <section class="table-container">
+                <h2>Live Telemetry</h2>
+                <table id="telemetry-table">
+                    <thead>
+                        <tr>
+                            <th>Node ID</th>
+                            <th>Protocol</th>
+                            <th>RSSI (dBm)</th>
+                            <th>Batt (mV)</th>
+                            <th>Temp (°C)</th>
+                            <th>Sats</th>
+                            <th>Lat / Lon</th>
+                            <th>Last Seen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows will be injected by JS -->
+                    </tbody>
+                </table>
+            </section>
+
+            <section class="charts-container" id="node-details" style="display: none;">
+                <div class="charts-header">
+                    <h2 id="chart-title">Node Details</h2>
+                    <button id="close-charts" class="btn-secondary">Close</button>
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-wrapper">
+                        <canvas id="tempChart"></canvas>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="battChart"></canvas>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="logs-container">
+                <h2>System Logs</h2>
+                <div id="log-box" class="log-box"></div>
+            </section>
+        </div>
+        
+        <aside class="command-panel">
+            <h2>Command Center</h2>
+            <form id="command-form">
+                <div class="form-group">
+                    <label for="target_addr">Target Address (Hex or Dec)</label>
+                    <input type="text" id="target_addr" placeholder="e.g. 0xFFFF" required>
+                </div>
+                <div class="form-group">
+                    <label for="cmd_type">Command Type</label>
+                    <select id="cmd_type">
+                        <option value="1">Read Attributes</option>
+                        <option value="2">Change Protocol</option>
+                        <option value="3" selected>Change Sleep Interval</option>
+                        <option value="4">Trigger GNSS</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="proto">Route Via Gateway</label>
+                    <select id="proto">
+                        <option value="0">WiFi/ESP-NOW (0)</option>
+                        <option value="1">Zigbee (1)</option>
+                        <option value="2">LoRa (2)</option>
+                    </select>
+                </div>
+                
+                <div class="dynamic-inputs" id="sleep-inputs">
+                    <div class="form-group">
+                        <label for="val3">Interval (seconds)</label>
+                        <input type="number" id="val3" value="10">
+                    </div>
+                </div>
+
+                <div class="dynamic-inputs" id="protocol-inputs" style="display:none;">
+                    <div class="form-group">
+                        <label for="proto_val3">Target Protocol</label>
+                        <select id="proto_val3">
+                            <option value="0">WiFi/ESP-NOW</option>
+                            <option value="1">Zigbee</option>
+                            <option value="2">LoRa</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-glow">Send Command</button>
+            </form>
+        </aside>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>

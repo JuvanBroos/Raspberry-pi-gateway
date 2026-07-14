@@ -39,6 +39,8 @@ manager = ConnectionManager()
 
 mqtt_client = mqtt.Client()
 
+main_loop = None
+
 def on_mqtt_connect(client, userdata, flags, rc):
     if rc == 0:
         print("WebAPI connected to MQTT Broker!")
@@ -53,11 +55,8 @@ def on_mqtt_message(client, userdata, msg):
             "topic": msg.topic,
             "payload": payload
         }
-        try:
-            loop = asyncio.get_running_loop()
-            loop.call_soon_threadsafe(asyncio.create_task, manager.broadcast(data))
-        except RuntimeError:
-            pass 
+        if main_loop and not main_loop.is_closed():
+            asyncio.run_coroutine_threadsafe(manager.broadcast(data), main_loop)
     except Exception as e:
         print(f"Error handling MQTT msg: {e}")
 
@@ -66,6 +65,8 @@ mqtt_client.on_message = on_mqtt_message
 
 @app.on_event("startup")
 async def startup_event():
+    global main_loop
+    main_loop = asyncio.get_running_loop()
     mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
     mqtt_client.loop_start()
 

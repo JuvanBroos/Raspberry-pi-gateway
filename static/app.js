@@ -5,6 +5,7 @@ const logBox = document.getElementById('log-box');
 
 // Node State
 const nodes = {};
+let activeChartNodeId = null;
 
 // Charts
 let tempChart, battChart;
@@ -89,6 +90,28 @@ function connectWS() {
 
         if (topic === "wsn/uplink/data") {
             updateTable(payload.node_id, payload);
+            
+            // Live update the chart if it's currently open
+            if (activeChartNodeId === payload.node_id && document.getElementById('node-details').style.display === 'block') {
+                const d = new Date(payload.timestamp_ms);
+                const timeStr = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                tempChart.data.labels.push(timeStr);
+                tempChart.data.datasets[0].data.push(payload.temp_c);
+                if (tempChart.data.labels.length > 30) {
+                    tempChart.data.labels.shift();
+                    tempChart.data.datasets[0].data.shift();
+                }
+                tempChart.update();
+
+                battChart.data.labels.push(timeStr);
+                battChart.data.datasets[0].data.push(payload.batt_mv);
+                if (battChart.data.labels.length > 30) {
+                    battChart.data.labels.shift();
+                    battChart.data.datasets[0].data.shift();
+                }
+                battChart.update();
+            }
         } else if (topic === "wsn/uplink/status") {
             appendLog(`Status update from ${payload.node_id}: ${payload.status}`);
         } else if (topic === "wsn/uplink/log") {
@@ -99,6 +122,7 @@ function connectWS() {
 }
 
 async function showNodeDetails(nodeId) {
+    activeChartNodeId = nodeId;
     document.getElementById('node-details').style.display = 'block';
     document.getElementById('chart-title').innerText = `History: ${nodeId}`;
     

@@ -31,7 +31,12 @@ function updateChartDisplay() {
         'temp_c': 'Temperature (°C)',
         'batt_mv': 'Battery (mV)',
         'rssi': 'RSSI (dBm)',
-        'gnss_sats': 'GNSS Sats'
+        'gnss_sats': 'GNSS Sats',
+        'lat': 'Latitude',
+        'lon': 'Longitude',
+        'accel_x': 'Accel X',
+        'accel_y': 'Accel Y',
+        'accel_z': 'Accel Z'
     };
     
     mainChart.data.datasets[0].label = metricLabels[metric];

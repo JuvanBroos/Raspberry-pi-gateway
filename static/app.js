@@ -132,6 +132,12 @@ async function showNodeDetails(nodeId) {
     
     // Auto-fill command form
     document.getElementById('target_addr').value = nodeId;
+    if (nodes[nodeId]) {
+        const p = nodes[nodeId].protocol;
+        if (p === "Zigbee") document.getElementById('proto').value = "1";
+        else if (p === "LoRa") document.getElementById('proto').value = "2";
+        else document.getElementById('proto').value = "0"; // WiFi/ESP-NOW
+    }
 
     try {
         const res = await fetch(`/api/history/${nodeId}?limit=30`);
@@ -165,10 +171,17 @@ document.getElementById('command-form').onsubmit = async (e) => {
     e.preventDefault();
     
     const cmdType = parseInt(document.getElementById('cmd_type').value);
-    let val3 = 0;
+    const routeProto = parseInt(document.getElementById('proto').value);
+    let val1 = 0, val2 = 0, val3 = 0;
     
     if (cmdType === 3) {
-        val3 = parseInt(document.getElementById('val3').value || 0);
+        const sleepVal = parseInt(document.getElementById('val3').value || 0);
+        if (routeProto === 1) { // Zigbee
+            val2 = sleepVal;
+            val3 = 1000;
+        } else {
+            val3 = sleepVal;
+        }
     } else if (cmdType === 2) {
         val3 = parseInt(document.getElementById('proto_val3').value);
     }
@@ -176,9 +189,9 @@ document.getElementById('command-form').onsubmit = async (e) => {
     const payload = {
         target_addr: document.getElementById('target_addr').value,
         cmd_type: cmdType,
-        proto: parseInt(document.getElementById('proto').value),
-        val1: 0,
-        val2: 0,
+        proto: routeProto,
+        val1: val1,
+        val2: val2,
         val3: val3
     };
 

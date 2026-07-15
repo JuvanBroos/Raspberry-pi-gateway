@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=Start WSN Gateway
 Comment=Start Coordinator Services
-Exec=lxterminal -e "/bin/bash -c '/home/juvanbroos/Documents/gateway/Raspberry-pi-gateway/start_gateway.sh; read -p \"Press Enter to close\"'"
+Exec=/home/juvanbroos/Documents/gateway/Raspberry-pi-gateway/start_gateway.sh
 Icon=utilities-terminal
-Terminal=false
+Terminal=true
 Type=Application
 Categories=Utility;

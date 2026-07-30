@@ -128,7 +128,8 @@ class GatewayCore:
                 data = {
                     "ID": f"0x{src_addr:04X}", "Proto": proto_str, "RSSI": f"{rssi} dBm", "Batt": f"{batt}",
                     "Temp": f"{(temp/10.0)-273.15:.2f}", "GNSS": f"{sats}", "Lat": f"{lat/1000000.0:.6f}",
-                    "Lon": f"{lon/1000000.0:.6f}", "Accel_X": ax, "Accel_Y": ay, "Accel_Z": az
+                    "Lon": f"{lon/1000000.0:.6f}", "Accel_X": ax, "Accel_Y": ay, "Accel_Z": az,
+                    "Tx_Count": curr
                 }
                 self.mqtt_client.publish(f"{topic_base}/data", json.dumps(data))
                 

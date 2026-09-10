@@ -193,14 +193,14 @@ class GatewayMQTTBridge:
                 "node_id": f"0x{src_addr:04X}",
                 "protocol": proto_str,
                 "rssi": rssi,
-                "batt_mv": batt,
+                "batt_mv": batt * 2,
                 "temp_c": round(temp / 10.0 - 273.15, 2),
                 "gnss_sats": sats,
                 "lat": round(lat / 1000000.0, 6),
                 "lon": round(lon / 1000000.0, 6),
-                "accel_x": ax,
-                "accel_y": ay,
-                "accel_z": az,
+                "accel_x": round((ax - 1650) / 330, 2),
+                "accel_y": round((ay - 1650) / 330, 2),
+                "accel_z": round((az - 1650) / 330, 2),
                 "timestamp_ms": int(time.time() * 1000)
             }
             
@@ -223,6 +223,12 @@ class GatewayMQTTBridge:
             command_value_1_min = int(payload.get("val1", 0))
             command_value_2_max = int(payload.get("val2", 0))
             command_value_3 = int(payload.get("val3", 0))
+            
+            if cmd_type == 0x03: # CHANGE_SLEEP_INTERVAL
+                if route_proto == PROTO_ZIGBEE:
+                    command_value_1_min = 0
+                    command_value_2_max = command_value_3 # Sleep value is typically passed in val3
+                    command_value_3 = 1 # Make this 1 to use the zigbee counter for rapid reporting
             
             if route_proto not in self.serial_conns or not self.serial_conns[route_proto].is_open:
                 print(f"ERROR: Cannot route command to 0x{target_addr:04X}. No active serial connection for protocol {route_proto}.")

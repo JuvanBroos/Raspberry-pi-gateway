@@ -35,9 +35,9 @@ class DatabaseLogger:
                 gnss_sats INTEGER,
                 lat REAL,
                 lon REAL,
-                accel_x INTEGER,
-                accel_y INTEGER,
-                accel_z INTEGER
+                accel_x REAL,
+                accel_y REAL,
+                accel_z REAL
             )
         """)
         
@@ -110,9 +110,9 @@ class DatabaseLogger:
                     payload.get("gnss_sats", 0),
                     payload.get("lat", 0.0),
                     payload.get("lon", 0.0),
-                    payload.get("accel_x", 0),
-                    payload.get("accel_y", 0),
-                    payload.get("accel_z", 0)
+                    payload.get("accel_x", 0.0),
+                    payload.get("accel_y", 0.0),
+                    payload.get("accel_z", 0.0)
                 ))
                 print(f"Logged DATA from {payload.get('node_id', 'UNKNOWN')} via {payload.get('protocol', 'UNKNOWN')}")
                 

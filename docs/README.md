@@ -50,3 +50,6 @@ To make this guide digestible, it has been split into four distinct sections det
 
 4. **[Web API and Startup Pipeline](./web_api_and_startup.md)**
    Covers the modern FastAPI web server (`web_api.py`) providing live WebSocket updates to the dashboard, and the `start_gateway.sh` script that manages the initialization of the entire microservice stack.
+
+5. **[Frontend Dashboard Interface](./frontend_dashboard.md)**
+   Details the client-side user interface (`index.html`, `app.js`, `style.css`), including WebSocket event stream routing, DOM updates, interactive Chart.js time-series inspection, and command dispatch.

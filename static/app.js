@@ -175,13 +175,7 @@ document.getElementById('command-form').onsubmit = async (e) => {
     let val1 = 0, val2 = 0, val3 = 0;
     
     if (cmdType === 3) {
-        const sleepVal = parseInt(document.getElementById('val3').value || 0);
-        if (routeProto === 1) { // Zigbee
-            val2 = sleepVal;
-            val3 = 1000;
-        } else {
-            val3 = sleepVal;
-        }
+        val3 = parseInt(document.getElementById('val3').value || 0);
     } else if (cmdType === 2) {
         val3 = parseInt(document.getElementById('proto_val3').value);
     }
